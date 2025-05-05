@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stellplatz-Management System</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    body {
+      background-color: #f5f5f5;
+    }
+    
+    .header {
+      background-color: #2c3e50;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    
+    #map-container {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 60px);
+    }
+    
+    @media (min-width: 768px) {
+      #map-container {
+        flex-direction: row;
+      }
+    }
+    
+    #map {
+      height: 50vh;
+      width: 100%;
+      transition: all 0.3s ease;
+    }
+    
+    #sidebar {
+      width: 100%;
+      background-color: white;
+      padding: 1rem;
+      box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+      overflow-y: auto;
+    }
+    
+    @media (min-width: 768px) {
+      #map {
+        height: 100%;
+        width: 70%;
+      }
+      
+      #sidebar {
+        width: 30%;
+        box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+      }
+    }
+    
+    .stellplatz-info {
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      border-radius: 4px;
+      cursor: pointer;
+      border-left: 4px solid #ccc;
+      transition: all 0.2s ease;
+    }
+    
+    .stellplatz-info:hover {
+      background-color: #f9f9f9;
+      transform: translateX(5px);
+    }
+    
+    .stellplatz-info.selected {
+      background-color: #edf7ed;
+      border-left-color: #4CAF50;
+    }
+    
+    .stellplatz-info.belegt {
+      border-left-color: #F44336;
+    }
+    
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: white;
+    }
+    
+    .badge-free {
+      background-color: #4CAF50;
+    }
+    
+    .badge-occupied {
+      background-color: #F44336;
+    }
+    
+    .controls {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    
+    .filter-btn {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      background-color: #e9e9e9;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    
+    .filter-btn:hover {
+      background-color: #d5d5d5;
+    }
+    
+    .filter-btn.active {
+      background-color: #2c3e50;
+      color: white;
+    }
+    
+    .detail-card {
+      background-color: white;
+      border-radius: 8px;
+      padding: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .detail-card h3 {
+      color: #2c3e50;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 0.5rem;
+    }
+    
+    .detail-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+    
+    .detail-label {
+      font-weight: 500;
+      color: #666;
+    }
+    
+    .overview-section {
+      margin-top: 1.5rem;
+    }
+    
+    .overview-section h3 {
+      margin-bottom: 0.75rem;
+    }
+    
+    .stats {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    
+    .stat-card {
+      background-color: white;
+      border-radius: 8px;
+      padding: 1rem;
+      flex: 1;
+      margin: 0 0.5rem;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    .stat-card:first-child {
+      margin-left: 0;
+    }
+    
+    .stat-card:last-child {
+      margin-right: 0;
+    }
+    
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    
+    .stat-label {
+      font-size: 0.8rem;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Stellplatz-Management System</h1>
+  </div>
+
+  <div id="map-container">
+    <div id="map"></div>
+    <div id="sidebar">
+      <div class="controls">
+        <div>
+          <button id="show-all" class="filter-btn active">Alle</button>
+          <button id="show-free" class="filter-btn">Frei</button>
+          <button id="show-occupied" class="filter-btn">Belegt</button>
+        </div>
+        <button id="reset-view" class="filter-btn">Kartenansicht zurücksetzen</button>
+      </div>
+      
+      <div class="detail-card" id="stellplatz-details">
+        <h3>Stellplatz-Details</h3>
+        <p>Bitte wählen Sie einen Stellplatz aus, um Details anzuzeigen.</p>
+      </div>
+      
+      <div class="overview-section">
+        <h3>Übersicht</h3>
+        <div class="stats">
+          <div class="stat-card">
+            <div class="stat-value" id="total-count">0</div>
+            <div class="stat-label">Gesamt</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="free-count">0</div>
+            <div class="stat-label">Frei</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="occupied-count">0</div>
+            <div class="stat-label">Belegt</div>
+          </div>
+        </div>
+        
+        <div id="stellplatz-liste"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let map;
+    let rectangles = [];
+    let markers = [];
+    let currentFilter = 'all';
+    let selectedStellplatz = null;
+    
+    // Erweiterte Stellplatz-Daten mit mehr Informationen
+    const stellplaetze = [
+      { 
+        id: 1,
+        nummer: 'A1', 
+        bounds: { north: 54.3215, south: 54.3205, east: 10.1305, west: 10.1295 }, 
+        belegt: false, 
+        typ: 'Lagerfläche', 
+        kapazitaet: '10 Paletten',
+        flaeche: '25m²',
+        letzteAenderung: '03.05.2025'
+      },
+      { 
+        id: 2,
+        nummer: 'A2', 
+        bounds: { north: 54.3215, south: 54.3205, east: 10.1315, west: 10.1305 }, 
+        belegt: true, 
+        typ: 'Containerstellplatz', 
+        kapazitaet: '1 Container',
+        flaeche: '30m²',
+        letzteAenderung: '28.04.2025'
+      },
+      { 
+        id: 3,
+        nummer: 'B1', 
+        bounds: { north: 54.3200, south: 54.3190, east: 10.1305, west: 10.1295 }, 
+        belegt: false, 
+        typ: 'Lagerfläche', 
+        kapazitaet: '5 Paletten',
+        flaeche: '15m²',
+        letzteAenderung: '01.05.2025'
+      },
+      { 
+        id: 4,
+        nummer: 'B2', 
+        bounds: { north: 54.3200, south: 54.3190, east: 10.1315, west: 10.1305 }, 
+        belegt: false, 
+        typ: 'Freifläche', 
+        kapazitaet: 'nach Bedarf',
+        flaeche: '20m²',
+        letzteAenderung: '29.04.2025'
+      },
+      { 
+        id: 5,
+        nummer: 'C1',
+        // Für schräges Rechteck verwenden wir ein Polygon statt normaler Bounds
+        isPolygon: true,
+        polygonCoords: [
+          { lat: 54.3210, lng: 10.1325 },
+          { lat: 54.3205, lng: 10.1335 },
+          { lat: 54.3198, lng: 10.1325 },
+          { lat: 54.3203, lng: 10.1315 }
+        ],
+        // Mittelpunkt für den Marker
+        center: { lat: 54.3204, lng: 10.1325 },
+        belegt: true,
+        typ: 'Sonderlagerfläche',
+        kapazitaet: '8 Paletten',
+        flaeche: '35m²',
+        letzteAenderung: '04.05.2025'
+      },
+      { 
+        id: 6,
+        nummer: 'C2',
+        // Für schräges Rechteck verwenden wir ein Polygon statt normaler Bounds
+        isPolygon: true,
+        polygonCoords: [
+          //{ lat: 54.27739455802233, lng: 10.253088726694774},  //{ lat: 54.27729467784146, lng: 10.252963049439847}, 
+          //{ lat: 54.27731510032134, lng: 10.253269108799355},
+          { lat: 54.27721809345179, lng: 10.253142312778987}, // lat: 54.27731510032134, lng: 10.253269108799355}
+          { lat: 54.27729467784146, lng: 10.252963049439847} // { lat: 54.27721809345179, lng: 10.253142312778987}
+        ],
+        // Mittelpunkt für den Marker
+        center: { lat: 54.2773, lng: 10.2531 },
+        belegt: true,
+        typ: 'Sonderlagerfläche',
+        kapazitaet: '8 Paletten',
+        flaeche: '35m²',
+        letzteAenderung: '04.05.2025'
+      }
+    ];
+
+    function initMap() {
+      // Map-Konfiguration mit mehr Optionen
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: { lat: 54.32075, lng: 10.1300 },
+        zoom: 17,
+        mapTypeId: 'satellite',
+        mapTypeControl: true,
+        streetViewControl: false,
+        fullscreenControl: true,
+        zoomControl: true
+      });
+      
+      // Erstelle Elemente für jeden Stellplatz
+      createStellplaetze();
+      
+      // Füge Event-Listener für Filter-Buttons hinzu
+      document.getElementById('show-all').addEventListener('click', () => filterStellplaetze('all'));
+      document.getElementById('show-free').addEventListener('click', () => filterStellplaetze('free'));
+      document.getElementById('show-occupied').addEventListener('click', () => filterStellplaetze('occupied'));
+      document.getElementById('reset-view').addEventListener('click', resetMapView);
+      
+      // Aktualisiere Statistiken
+      updateStats();
+      
+      // Zeige alle Stellplätze in der Liste an
+      renderStellplatzListe();
+    }
+    
+    function createStellplaetze() {
+      stellplaetze.forEach(stellplatz => {
+        const fillColor = stellplatz.belegt ? '#F44336' : '#4CAF50';
+        const strokeColor = stellplatz.belegt ? '#D32F2F' : '#388E3C';
+        let shape;
+        let centerLat, centerLng;
+        
+        if (stellplatz.isPolygon) {
+          // Polygon für schräge Stellplätze erstellen
+          shape = new google.maps.Polygon({
+            paths: stellplatz.polygonCoords,
+            strokeColor: strokeColor,
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: fillColor,
+            fillOpacity: 0.35,
+            map: map,
+            stellplatzData: stellplatz
+          });
+          
+          // Vordefinierten Mittelpunkt verwenden
+          centerLat = stellplatz.center.lat;
+          centerLng = stellplatz.center.lng;
+        } else {
+          // Rechteck für den Stellplatz erstellen
+          shape = new google.maps.Rectangle({
+            strokeColor: strokeColor,
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: fillColor,
+            fillOpacity: 0.35,
+            bounds: stellplatz.bounds,
+            map: map,
+            stellplatzData: stellplatz
+          });
+          
+          // Mittelpunkt des Stellplatzes berechnen
+          const bounds = stellplatz.bounds;
+          centerLat = (bounds.north + bounds.south) / 2;
+          centerLng = (bounds.east + bounds.west) / 2;
+        }
+        
+        // Marker für den Stellplatz erstellen
+        const marker = new google.maps.Marker({
+          position: { lat: centerLat, lng: centerLng },
+          label: {
+            text: stellplatz.nummer,
+            color: 'white',
+            fontWeight: 'bold'
+          },
+          map: map,
+          opacity: 1,
+          stellplatzData: stellplatz
+        });
+        
+        // Event-Listener hinzufügen
+        shape.addListener('click', () => {
+          selectStellplatz(stellplatz);
+          zoomToStellplatz(stellplatz);
+        });
+        
+        marker.addListener('click', () => {
+          selectStellplatz(stellplatz);
+          zoomToStellplatz(stellplatz);
+        });
+        
+        // Event-Listener für Hover-Effekte
+        shape.addListener('mouseover', () => {
+          if (stellplatz.isPolygon) {
+            shape.setOptions({ fillOpacity: 0.6, strokeWeight: 3 });
+          } else {
+            shape.setOptions({ fillOpacity: 0.6, strokeWeight: 3 });
+          }
+        });
+        
+        shape.addListener('mouseout', () => {
+          if (stellplatz.isPolygon) {
+            shape.setOptions({ fillOpacity: 0.35, strokeWeight: 2 });
+          } else {
+            shape.setOptions({ fillOpacity: 0.35, strokeWeight: 2 });
+          }
+        });
+        
+        // Speichern der Referenzen für später
+        rectangles.push(shape);
+        markers.push(marker);
+      });
+    }
+    
+    function selectStellplatz(stellplatz) {
+      selectedStellplatz = stellplatz;
+      updateStellplatzDetails(stellplatz);
+      
+      // Markiere den ausgewählten Stellplatz in der Liste
+      const listElements = document.querySelectorAll('.stellplatz-info');
+      listElements.forEach(el => {
+        if (el.dataset.id == stellplatz.id) {
+          el.classList.add('selected');
+        } else {
+          el.classList.remove('selected');
+        }
+      });
+    }
+    
+    function zoomToStellplatz(stellplatz) {
+      const bounds = new google.maps.LatLngBounds();
+      
+      if (stellplatz.isPolygon) {
+        // Für Polygone alle Koordinaten in die Bounds einbeziehen
+        stellplatz.polygonCoords.forEach(coord => {
+          bounds.extend(new google.maps.LatLng(coord.lat, coord.lng));
+        });
+        
+        // Erweitere die Bounds leicht für bessere Ansicht
+        const padding = 0.0005;
+        bounds.extend(new google.maps.LatLng(
+          bounds.getNorthEast().lat() + padding,
+          bounds.getNorthEast().lng() + padding
+        ));
+        bounds.extend(new google.maps.LatLng(
+          bounds.getSouthWest().lat() - padding,
+          bounds.getSouthWest().lng() - padding
+        ));
+      } else {
+        // Für rechteckige Stellplätze
+        bounds.extend(new google.maps.LatLng(stellplatz.bounds.south, stellplatz.bounds.west));
+        bounds.extend(new google.maps.LatLng(stellplatz.bounds.north, stellplatz.bounds.east));
+        
+        // Erweitere die Bounds leicht für bessere Ansicht
+        bounds.extend(new google.maps.LatLng(
+          stellplatz.bounds.north + 0.0005, 
+          stellplatz.bounds.east + 0.0005
+        ));
+        bounds.extend(new google.maps.LatLng(
+          stellplatz.bounds.south - 0.0005, 
+          stellplatz.bounds.west - 0.0005
+        ));
+      }
+      
+      map.fitBounds(bounds);
+    }
+    
+    function resetMapView() {
+      const bounds = new google.maps.LatLngBounds();
+      stellplaetze.forEach(stellplatz => {
+        bounds.extend(new google.maps.LatLng(stellplatz.bounds.north, stellplatz.bounds.east));
+        bounds.extend(new google.maps.LatLng(stellplatz.bounds.south, stellplatz.bounds.west));
+      });
+      
+      map.fitBounds(bounds);
+    }
+    
+    function updateStellplatzDetails(stellplatz) {
+      const statusText = stellplatz.belegt ? 'Belegt' : 'Frei';
+      const statusClass = stellplatz.belegt ? 'badge-occupied' : 'badge-free';
+      
+      const content = `
+        <h3>Stellplatz ${stellplatz.nummer}</h3>
+        <div class="detail-item">
+          <span class="detail-label">Status:</span>
+          <span class="status-badge ${statusClass}">${statusText}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Typ:</span>
+          <span>${stellplatz.typ}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Kapazität:</span>
+          <span>${stellplatz.kapazitaet}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Fläche:</span>
+          <span>${stellplatz.flaeche}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Letzte Änderung:</span>
+          <span>${stellplatz.letzteAenderung}</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Koordinaten:</span>
+          <span>
+            ${((stellplatz.bounds.north + stellplatz.bounds.south) / 2).toFixed(6)}, 
+            ${((stellplatz.bounds.east + stellplatz.bounds.west) / 2).toFixed(6)}
+          </span>
+        </div>
+      `;
+      
+      document.getElementById('stellplatz-details').innerHTML = content;
+    }
+    
+    function filterStellplaetze(filter) {
+      currentFilter = filter;
+      
+      // Aktualisiere aktiven Button
+      document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+      document.getElementById(`show-${filter}`).classList.add('active');
+      
+      // Wende Filter auf Karte an
+      rectangles.forEach((shape, index) => {
+        const stellplatz = shape.stellplatzData;
+        const marker = markers[index];
+        
+        let visible = true;
+        if (filter === 'free' && stellplatz.belegt) visible = false;
+        if (filter === 'occupied' && !stellplatz.belegt) visible = false;
+        
+        shape.setVisible(visible);
+        marker.setVisible(visible);
+      });
+      
+      // Aktualisiere die Liste
+      renderStellplatzListe();
+    }
+    
+    function updateStats() {
+      const total = stellplaetze.length;
+      const free = stellplaetze.filter(s => !s.belegt).length;
+      const occupied = stellplaetze.filter(s => s.belegt).length;
+      
+      document.getElementById('total-count').textContent = total;
+      document.getElementById('free-count').textContent = free;
+      document.getElementById('occupied-count').textContent = occupied;
+    }
+    
+    function renderStellplatzListe() {
+      const container = document.getElementById('stellplatz-liste');
+      container.innerHTML = '';
+      
+      stellplaetze.forEach(stellplatz => {
+        // Prüfe, ob der Stellplatz dem aktuellen Filter entspricht
+        if ((currentFilter === 'free' && stellplatz.belegt) || 
+            (currentFilter === 'occupied' && !stellplatz.belegt)) {
+          return;
+        }
+        
+        const statusClass = stellplatz.belegt ? 'belegt' : '';
+        const statusBadge = stellplatz.belegt ? 
+          '<span class="status-badge badge-occupied">Belegt</span>' : 
+          '<span class="status-badge badge-free">Frei</span>';
+        
+        const element = document.createElement('div');
+        element.className = `stellplatz-info ${statusClass}`;
+        element.dataset.id = stellplatz.id;
+        element.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center">
+            <strong>Stellplatz ${stellplatz.nummer}</strong>
+            ${statusBadge}
+          </div>
+          <div style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
+            ${stellplatz.typ} - ${stellplatz.kapazitaet}
+          </div>
+        `;
+        
+        // Klick-Event hinzufügen
+        element.addEventListener('click', () => {
+          selectStellplatz(stellplatz);
+          zoomToStellplatz(stellplatz);
+        });
+        
+        container.appendChild(element);
+      });
+    }
+  </script>
+  
+  <!-- Achte darauf, deinen tatsächlichen API-Schlüssel hier einzufügen -->
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=&callback=initMap"></script>
+</body>
+</html>
