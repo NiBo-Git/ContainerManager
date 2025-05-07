@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Stellplatz-Management System für Lager und Containerflächen">
+  <title>Stellplatz-Management System</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="header">
+    <h1 class="app-title">Stellplatz-Management System</h1>
+  </div>
+
+  <div id="map-container">
+    <div id="map">
+      <div id="map-loading" class="map-loading">
+        <p>Karte wird geladen...</p>
+      </div>
+    </div>
+    
+    <div id="sidebar">
+      <div class="controls">
+        <div class="filter-group">
+          <button id="show-all" class="btn filter-btn active" aria-pressed="true">
+            <span class="btn-icon" aria-hidden="true">📋</span>
+            Alle
+          </button>
+          <button id="show-free" class="btn filter-btn" aria-pressed="false">
+            <span class="btn-icon" aria-hidden="true">✅</span>
+            Frei
+          </button>
+          <button id="show-occupied" class="btn filter-btn" aria-pressed="false">
+            <span class="btn-icon" aria-hidden="true">❌</span>
+            Belegt
+          </button>
+        </div>
+        <div class="action-group">
+          <button id="new-stellplatz" class="btn btn-success">
+            <span class="btn-icon" aria-hidden="true">➕</span>
+            Neu
+          </button>
+          <button id="reset-view" class="btn action-btn">
+            <span class="btn-icon" aria-hidden="true">🔍</span>
+            Übersicht
+          </button>
+          <button id="print-view" class="btn action-btn">
+            <span class="btn-icon" aria-hidden="true">🖨️</span>
+            Drucken
+          </button>
+        </div>
+      </div>
+      
+      <div class="search-container">
+        <span class="search-icon" aria-hidden="true">🔍</span>
+        <input type="search" id="search-input" class="search-input" placeholder="Suche nach Stellplatz-Nummer oder Typ...">
+      </div>
+      
+      <div class="tab-container">
+        <div class="tab-nav" role="tablist">
+          <button id="tab-details" class="tab-btn active" role="tab" aria-selected="true">Details</button>
+          <button id="tab-overview" class="tab-btn" role="tab" aria-selected="false">Übersicht</button>
+        </div>
+        
+        <div id="details-content" class="tab-content active" role="tabpanel" aria-labelledby="tab-details">
+          <div class="detail-card" id="stellplatz-details">
+            <h3>Stellplatz-Details</h3>
+            <p>Bitte wählen Sie einen Stellplatz aus, um Details anzuzeigen.</p>
+          </div>
+        </div>
+        
+        <div id="overview-content" class="tab-content" role="tabpanel" aria-labelledby="tab-overview">
+          <div class="stats">
+            <div class="stat-card" aria-label="Gesamtanzahl der Stellplätze">
+              <div class="stat-value" id="total-count">0</div>
+              <div class="stat-label">Gesamt</div>
+            </div>
+            <div class="stat-card" aria-label="Anzahl der freien Stellplätze">
+              <div class="stat-value" id="free-count">0</div>
+              <div class="stat-label">Frei</div>
+            </div>
+            <div class="stat-card" aria-label="Anzahl der belegten Stellplätze">
+              <div class="stat-value" id="occupied-count">0</div>
+              <div class="stat-label">Belegt</div>
+            </div>
+          </div>
+          
+          <div class="stellplatz-list" id="stellplatz-liste"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal für Statusänderung -->
+  <div class="modal-backdrop" id="status-modal">
+    <div class="modal-container" role="dialog" aria-labelledby="modal-title">
+      <div class="modal-header">
+        <h3 id="modal-title" class="modal-title">Status ändern</h3>
+        <button class="modal-close" aria-label="Schließen">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="status-form">
+          <div class="form-group">
+            <label for="status-select" class="form-label">Neuer Status:</label>
+            <select id="status-select" class="form-control form-select">
+              <option value="true">Belegt</option>
+              <option value="false">Frei</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="status-note" class="form-label">Notiz (optional):</label>
+            <textarea id="status-note" class="form-control" rows="3"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="cancel-status">Abbrechen</button>
+        <button class="btn btn-success" id="save-status">Speichern</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Modal für neuen Stellplatz -->
+  <div class="modal-backdrop" id="new-stellplatz-modal">
+    <div class="modal-container" role="dialog" aria-labelledby="new-stellplatz-title">
+      <div class="modal-header">
+        <h3 id="new-stellplatz-title" class="modal-title">Neuen Stellplatz erstellen</h3>
+        <button class="modal-close" aria-label="Schließen">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="new-stellplatz-form">
+          <div class="form-group">
+            <label for="stellplatz-nummer" class="form-label">Stellplatz-Nummer:</label>
+            <input type="text" id="stellplatz-nummer" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="stellplatz-typ" class="form-label">Typ:</label>
+            <select id="stellplatz-typ" class="form-control form-select">
+              <option value="Lagerfläche">Lagerfläche</option>
+              <option value="Containerstellplatz">Containerstellplatz</option>
+              <option value="Freifläche">Freifläche</option>
+              <option value="Sonderlagerfläche">Sonderlagerfläche</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="stellplatz-kapazitaet" class="form-label">Kapazität:</label>
+            <input type="text" id="stellplatz-kapazitaet" class="form-control" placeholder="z.B. 10 Paletten">
+          </div>
+          <div class="form-group">
+            <label for="stellplatz-flaeche" class="form-label">Fläche:</label>
+            <input type="text" id="stellplatz-flaeche" class="form-control" placeholder="z.B. 25m²">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Status:</label>
+            <div class="form-check">
+              <input type="radio" id="status-frei" name="status" value="false" class="form-check-input" checked>
+              <label for="status-frei">Frei</label>
+            </div>
+            <div class="form-check">
+              <input type="radio" id="status-belegt" name="status" value="true" class="form-check-input">
+              <label for="status-belegt">Belegt</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="stellplatz-notiz" class="form-label">Notiz (optional):</label>
+            <textarea id="stellplatz-notiz" class="form-control" rows="2"></textarea>
+          </div>
+          <div id="coordinates-display" class="form-help">
+            <p>Die Koordinaten werden automatisch aus Ihrer Zeichnung übernommen.</p>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" id="cancel-new-stellplatz">Abbrechen</button>
+        <button class="btn btn-success" id="save-new-stellplatz">Speichern</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Toast-Container für Benachrichtigungen -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script>
+    /**
+     * Stellplatz-Management-System mit Zeichenfunktion
+     */
+    (function() {
+      'use strict';
+      
+      // App-Zustand als ein zentrales Objekt
+      const AppState = {
+        map: null,
+        shapes: [],
+        markers: [],
+        drawingManager: null,
+        currentFilter: 'all',
+        selectedStellplatz: null,
+        stellplaetze: [],
+        searchTerm: '',
+        activeTab: 'details',
+        drawingMode: null,
+        drawingShape: null,
+        nextId: 6, // Start-ID für neue Stellplätze
+        temporaryShapes: [] // Für vorübergehende Zeichnungen
+      };
+      
+      // DOM-Referenzen
+      const UI = {
+        map: document.getElementById('map'),
+        mapLoading: document.getElementById('map-loading'),
+        stellplatzListe: document.getElementById('stellplatz-liste'),
+        stellplatzDetails: document.getElementById('stellplatz-details'),
+        searchInput: document.getElementById('search-input'),
+        totalCount: document.getElementById('total-count'),
+        freeCount: document.getElementById('free-count'),
+        occupiedCount: document.getElementById('occupied-count'),
+        filterButtons: {
+          all: document.getElementById('show-all'),
+          free: document.getElementById('show-free'),
+          occupied: document.getElementById('show-occupied')
+        },
+        actionButtons: {
+          resetView: document.getElementById('reset-view'),
+          printView: document.getElementById('print-view'),
+          newStellplatz: document.getElementById('new-stellplatz')
+        },
+        tabs: {
+          details: document.getElementById('tab-details'),
+          overview: document.getElementById('tab-overview')
+        },
+        tabContents: {
+          details: document.getElementById('details-content'),
+          overview: document.getElementById('overview-content')
+        },
+        statusModal: {
+          container: document.getElementById('status-modal'),
+          title: document.getElementById('modal-title'),
+          form: document.getElementById('status-form'),
+          statusSelect: document.getElementById('status-select'),
+          statusNote: document.getElementById('status-note'),
+          saveButton: document.getElementById('save-status'),
+          cancelButton: document.getElementById('cancel-status'),
+          closeButton: document.querySelector('#status-modal .modal-close')
+        },
+        newStellplatzModal: {
+          container: document.getElementById('new-stellplatz-modal'),
+          title: document.getElementById('new-stellplatz-title'),
+          form: document.getElementById('new-stellplatz-form'),
+          nummer: document.getElementById('stellplatz-nummer'),
+          typ: document.getElementById('stellplatz-typ'),
+          kapazitaet: document.getElementById('stellplatz-kapazitaet'),
+          flaeche: document.getElementById('stellplatz-flaeche'),
+          statusFrei: document.getElementById('status-frei'),
+          statusBelegt: document.getElementById('status-belegt'),
+          notiz: document.getElementById('stellplatz-notiz'),
+          coordsDisplay: document.getElementById('coordinates-display'),
+          saveButton: document.getElementById('save-new-stellplatz'),
+          cancelButton: document.getElementById('cancel-new-stellplatz'),
+          closeButton: document.querySelector('#new-stellplatz-modal .modal-close')
+        },
+        toastContainer: document.getElementById('toast-container')
+      };
+      
+      // Erweiterte Stellplatz-Daten
+      const stellplaetzeData = [
+        { 
+          id: 1,
+          nummer: 'A1', 
+          bounds: { north: 54.3215, south: 54.3205, east: 10.1305, west: 10.1295 }, 
+          belegt: false, 
+          typ: 'Lagerfläche', 
+          kapazitaet: '10 Paletten',
+          flaeche: '25m²',
+          letzteAenderung: '03.05.2023',
+          historie: [
+            { datum: '01.05.2023', status: 'Frei', notiz: 'Neue Fläche freigegeben' }
+          ]
+        },
+        { 
+          id: 2,
+          nummer: 'A2', 
+          bounds: { north: 54.3215, south: 54.3205, east: 10.1315, west: 10.1305 }, 
+          belegt: true, 
+          typ: 'Containerstellplatz', 
+          kapazitaet: '1 Container',
+          flaeche: '30m²',
+          letzteAenderung: '28.04.2023',
+          historie: [
+            { datum: '28.04.2023', status: 'Belegt', notiz: 'Container #C-123 platziert' }
+          ]
+        },
+        { 
+          id: 3,
+          nummer: 'B1', 
+          bounds: { north: 54.3200, south: 54.3190, east: 10.1305, west: 10.1295 }, 
+          belegt: false, 
+          typ: 'Lagerfläche', 
+          kapazitaet: '5 Paletten',
+          flaeche: '15m²',
+          letzteAenderung: '01.05.2023',
+          historie: [
+            { datum: '01.05.2023', status: 'Frei', notiz: 'Fläche nach Reinigung freigegeben' }
+          ]
+        },
+        { 
+          id: 4,
+          nummer: 'B2', 
+          bounds: { north: 54.3200, south: 54.3190, east: 10.1315, west: 10.1305 }, 
+          belegt: false, 
+          typ: 'Freifläche', 
+          kapazitaet: 'nach Bedarf',
+          flaeche: '20m²',
+          letzteAenderung: '29.04.2023',
+          historie: [
+            { datum: '29.04.2023', status: 'Frei', notiz: '' }
+          ]
+        },
+        { 
+          id: 5,
+          nummer: 'C1',
+          isPolygon: true,
+          polygonCoords: [
+            { lat: 54.3210, lng: 10.1325 },
+            { lat: 54.3205, lng: 10.1335 },
+            { lat: 54.3198, lng: 10.1325 },
+            { lat: 54.3203, lng: 10.1315 }
+          ],
+          center: { lat: 54.3204, lng: 10.1325 },
+          bounds: {
+            north: 54.3210,
+            south: 54.3198,
+            east: 10.1335,
+            west: 10.1315
+          },
+          belegt: true,
+          typ: 'Sonderlagerfläche',
+          kapazitaet: '8 Paletten',
+          flaeche: '35m²',
+          letzteAenderung: '04.05.2023',
+          historie: [
+            { datum: '04.05.2023', status: 'Belegt', notiz: 'Speziallieferung #SP-789' }
+          ]
+        }
+      ];
+      
+      /**
+       * Initialisiert die Google Maps Karte und alle Komponenten
+       */
+      function initMap() {
+        try {
+          // Map-Konfiguration
+          AppState.map = new google.maps.Map(UI.map, {
+            center: { lat: 54.32075, lng: 10.1300 },
+            zoom: 17,
+            mapTypeId: 'satellite',
+            mapTypeControl: true,
+            streetViewControl: false,
+            fullscreenControl: true,
+            zoomControl: true,
+            gestureHandling: 'greedy',
+            tilt: 0
+          });
+          
+          // Lade und zeige Stellplätze an
+          AppState.stellplaetze = stellplaetzeData;
+          createStellplaetze();
+          
+          // Initiiere UI-Komponenten
+          initUI();
+          
+          // Zeichenfunktion initialisieren
+          initDrawingManager();
+          
+          // Entferne Ladeanimation
+          UI.mapLoading.style.display = 'none';
+        } catch (error) {
+          handleMapError(error);
+        }
+      }
+      
+      /**
+       * Initialisiert den Google Maps Drawing Manager
+       */
+      function initDrawingManager() {
+        // Drawing Manager erstellen, aber standardmäßig ausblenden
+        AppState.drawingManager = new google.maps.drawing.DrawingManager({
+          drawingControl: false, // Wir aktivieren die Steuerelemente manuell
+          drawingControlOptions: {
+            position: google.maps.ControlPosition.TOP_CENTER,
+            drawingModes: [
+              google.maps.drawing.OverlayType.POLYGON,
+              google.maps.drawing.OverlayType.RECTANGLE
+            ]
+          },
+          polygonOptions: {
+            fillColor: '#4CAF50',
+            fillOpacity: 0.3,
+            strokeColor: '#4CAF50',
+            strokeWeight: 2,
+            clickable: true,
+            editable: true,
+            zIndex: 1,
+            draggable: true
+          },
+          rectangleOptions: {
+            fillColor: '#4CAF50',
+            fillOpacity: 0.3,
+            strokeColor: '#4CAF50',
+            strokeWeight: 2,
+            clickable: true,
+            editable: true,
+            zIndex: 1,
+            draggable: true
+          }
+        });
+        
+        // Event-Listener für fertige Zeichnungen
+        google.maps.event.addListener(AppState.drawingManager, 'polygoncomplete', handlePolygonComplete);
+        google.maps.event.addListener(AppState.drawingManager, 'rectanglecomplete', handleRectangleComplete);
+      }
+      
+      /**
+       * Behandelt die Fertigstellung eines Polygons
+       */
+      function handlePolygonComplete(polygon) {
+        // Drawing Manager deaktivieren
+        AppState.drawingManager.setDrawingMode(null);
+        
+        // Polygon-Daten extrahieren
+        const path = polygon.getPath().getArray().map(latLng => ({ lat: latLng.lat(), lng: latLng.lng() }));
+        let area = 0;
+        
+        // Fläche berechnen, wenn die Geometry-Bibliothek verfügbar ist
+        if (google.maps.geometry) {
+          area = google.maps.geometry.spherical.computeArea(polygon.getPath());
+        }
+        
+        // Mittelpunkt berechnen
+        const bounds = new google.maps.LatLngBounds();
+        path.forEach(coord => {
+          bounds.extend(new google.maps.LatLng(coord.lat, coord.lng));
+        });
+        
+        const center = {
+          lat: bounds.getCenter().lat(),
+          lng: bounds.getCenter().lng()
+        };
+        
+        // Die temporäre Form für spätere Referenz speichern
+        AppState.drawingShape = polygon;
+        AppState.temporaryShapes.push(polygon);
+        
+        // Stellplatzformular mit den Polygon-Daten öffnen
+        openNewStellplatzModal('polygon', {
+          polygonCoords: path,
+          center: center,
+          bounds: {
+            north: bounds.getNorthEast().lat(),
+            south: bounds.getSouthWest().lat(),
+            east: bounds.getNorthEast().lng(),
+            west: bounds.getSouthWest().lng()
+          },
+          area: area > 0 ? (area).toFixed(2) + " m²" : "Berechnung nicht möglich"
+        });
+        
+        // Listener für Änderungen am Polygon (wenn bearbeitet wird)
+        google.maps.event.addListener(polygon, 'mouseup', () => {
+          updateDrawingShape(polygon, 'polygon');
+        });
+      }
+      
+      /**
+       * Behandelt die Fertigstellung eines Rechtecks
+       */
+      function handleRectangleComplete(rectangle) {
+        // Drawing Manager deaktivieren
+        AppState.drawingManager.setDrawingMode(null);
+        
+        // Rechteck-Bounds extrahieren
+        const bounds = rectangle.getBounds();
+        const ne = bounds.getNorthEast();
+        const sw = bounds.getSouthWest();
+        
+        const boundData = {
+          north: ne.lat(),
+          east: ne.lng(),
+          south: sw.lat(),
+          west: sw.lng()
+        };
+        
+        // Flächenberechnung
+        let area = 0;
+        if (google.maps.geometry) {
+          // Rechteck in ein Polygon umwandeln für die Flächenberechnung
+          const path = [
+            new google.maps.LatLng(boundData.north, boundData.west),
+            new google.maps.LatLng(boundData.north, boundData.east),
+            new google.maps.LatLng(boundData.south, boundData.east),
+            new google.maps.LatLng(boundData.south, boundData.west)
+          ];
+          area = google.maps.geometry.spherical.computeArea(path);
+        }
+        
+        // Die temporäre Form für spätere Referenz speichern
+        AppState.drawingShape = rectangle;
+        AppState.temporaryShapes.push(rectangle);
+        
+        // Stellplatzformular mit den Rechteck-Daten öffnen
+        openNewStellplatzModal('rectangle', {
+          bounds: boundData,
+          area: area > 0 ? (area).toFixed(2) + " m²" : "Berechnung nicht möglich"
+        });
+        
+        // Listener für Änderungen am Rechteck (wenn bearbeitet wird)
+        google.maps.event.addListener(rectangle, 'bounds_changed', () => {
+          updateDrawingShape(rectangle, 'rectangle');
+        });
+      }
+      
+      /**
+       * Aktualisiert die Form-Daten, wenn die Form nach dem Zeichnen bearbeitet wird
+       */
+      function updateDrawingShape(shape, type) {
+        if (type === 'polygon') {
+          const path = shape.getPath().getArray().map(latLng => ({ lat: latLng.lat(), lng: latLng.lng() }));
+          const bounds = new google.maps.LatLngBounds();
+          path.forEach(coord => {
+            bounds.extend(new google.maps.LatLng(coord.lat, coord.lng));
+          });
+          
+          let area = 0;
+          if (google.maps.geometry) {
+            area = google.maps.geometry.spherical.computeArea(shape.getPath());
+          }
+          
+          const center = {
+            lat: bounds.getCenter().lat(),
+            lng: bounds.getCenter().lng()
+          };
+          
+          updateNewStellplatzModalCoords({
+            polygonCoords: path,
+            center: center,
+            bounds: {
+              north: bounds.getNorthEast().lat(),
+              south: bounds.getSouthWest().lat(),
+              east: bounds.getNorthEast().lng(),
+              west: bounds.getSouthWest().lng()
+            },
+            area: area > 0 ? (area).toFixed(2) + " m²" : "Berechnung nicht möglich"
+          }, 'polygon');
+          
+        } else if (type === 'rectangle') {
+          const bounds = shape.getBounds();
+          const ne = bounds.getNorthEast();
+          const sw = bounds.getSouthWest();
+          
+          const boundData = {
+            north: ne.lat(),
+            east: ne.lng(),
+            south: sw.lat(),
+            west: sw.lng()
+          };
+          
+          let area = 0;
+          if (google.maps.geometry) {
+            const path = [
+              new google.maps.LatLng(boundData.north, boundData.west),
+              new google.maps.LatLng(boundData.north, boundData.east),
+              new google.maps.LatLng(boundData.south, boundData.east),
+              new google.maps.LatLng(boundData.south, boundData.west)
+            ];
+            area = google.maps.geometry.spherical.computeArea(path);
+          }
+          
+          updateNewStellplatzModalCoords({
+            bounds: boundData,
+            area: area > 0 ? (area).toFixed(2) + " m²" : "Berechnung nicht möglich"
+          }, 'rectangle');
+        }
+      }
+      
+      /**
+       * Aktualisiert die Koordinaten-Anzeige im Modal, wenn die Form bearbeitet wird
+       */
+      function updateNewStellplatzModalCoords(data, type) {
+        // Nur aktualisieren, wenn das Modal geöffnet ist
+        if (!UI.newStellplatzModal.container.classList.contains('show')) return;
+        
+        // Koordinaten-Anzeige aktualisieren
+        let coordsHTML = '';
+        
+        if (type === 'rectangle') {
+          coordsHTML = `
+            <strong>Rechteck:</strong><br>
+            Nord: ${data.bounds.north.toFixed(6)}<br>
+            Süd: ${data.bounds.south.toFixed(6)}<br>
+            Ost: ${data.bounds.east.toFixed(6)}<br>
+            West: ${data.bounds.west.toFixed(6)}<br>
+            <strong>Fläche:</strong> ${data.area}
+          `;
+        } else if (type === 'polygon') {
+          coordsHTML = `
+            <strong>Polygon:</strong><br>
+            ${data.polygonCoords.length} Punkte<br>
+            Zentrum: ${data.center.lat.toFixed(6)}, ${data.center.lng.toFixed(6)}<br>
+            <strong>Fläche:</strong> ${data.area}
+          `;
+        }
+        
+        UI.newStellplatzModal.coordsDisplay.innerHTML = coordsHTML;
+        
+        // Daten für später speichern
+        UI.newStellplatzModal.form.dataset.type = type;
+        UI.newStellplatzModal.form.dataset.data = JSON.stringify(data);
+        
+        // Automatisch die Fläche übernehmen, wenn das Feld leer ist
+        if (!UI.newStellplatzModal.flaeche.value && data.area) {
+          UI.newStellplatzModal.flaeche.value = data.area;
+        }
+      }
+      
+      /**
+       * Behandelt Fehler bei der Karteninitialisierung
+       */
+      function handleMapError(error) {
+        console.error('Fehler beim Initialisieren der Karte:', error);
+        UI.mapLoading.innerHTML = `
+          <div class="map-error">
+            <p><strong>Fehler beim Laden der Karte</strong></p>
+            <p>Bitte überprüfen Sie Ihre Internetverbindung und laden Sie die Seite neu.</p>
+            <p>Fehlermeldung: ${error.message || 'Unbekannter Fehler'}</p>
+          </div>
+        `;
+      }
+      
+      /**
+       * Initialisiert die UI-Komponenten und Event-Listener
+       */
+      function initUI() {
+        // Event-Listener für Filter-Buttons
+        Object.entries(UI.filterButtons).forEach(([filter, button]) => {
+          button.addEventListener('click', () => filterStellplaetze(filter));
+        });
+        
+        // Event-Listener für Action-Buttons
+        UI.actionButtons.resetView.addEventListener('click', resetMapView);
+        UI.actionButtons.printView.addEventListener('click', printView);
+        UI.actionButtons.newStellplatz.addEventListener('click', startNewStellplatz);
+        
+        // Event-Listener für Tabs
+        Object.entries(UI.tabs).forEach(([tab, button]) => {
+          button.addEventListener('click', () => switchTab(tab));
+        });
+        
+        // Event-Listener für Suche
+        UI.searchInput.addEventListener('input', handleSearch);
+        
+        // Event-Listener für Status-Modal
+        UI.statusModal.saveButton.addEventListener('click', saveStatusChange);
+        UI.statusModal.cancelButton.addEventListener('click', () => closeModal(UI.statusModal.container));
+        UI.statusModal.closeButton.addEventListener('click', () => closeModal(UI.statusModal.container));
+        UI.statusModal.container.addEventListener('click', (e) => {
+          if (e.target === UI.statusModal.container) closeModal(UI.statusModal.container);
+        });
+        
+        // Event-Listener für Neuen-Stellplatz-Modal
+        UI.newStellplatzModal.saveButton.addEventListener('click', saveNewStellplatz);
+        UI.newStellplatzModal.cancelButton.addEventListener('click', () => {
+          closeModal(UI.newStellplatzModal.container);
+          cancelDrawing();
+        });
+        UI.newStellplatzModal.closeButton.addEventListener('click', () => {
+          closeModal(UI.newStellplatzModal.container);
+          cancelDrawing();
+        });
+        UI.newStellplatzModal.container.addEventListener('click', (e) => {
+          if (e.target === UI.newStellplatzModal.container) {
+            closeModal(UI.newStellplatzModal.container);
+            cancelDrawing();
+          }
+        });
+        
+        // Escape-Taste zum Schließen der Modals
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') {
+            if (UI.statusModal.container.classList.contains('show')) {
+              closeModal(UI.statusModal.container);
+            }
+            if (UI.newStellplatzModal.container.classList.contains('show')) {
+              closeModal(UI.newStellplatzModal.container);
+              cancelDrawing();
+            }
+            // Auch Zeichenmodus abbrechen
+            if (AppState.drawingManager && AppState.drawingManager.getMap()) {
+              cancelDrawing();
+            }
+          }
+        });
+        
+        // Initialisiere Statistiken
+        updateStats();
+        
+        // Zeige alle Stellplätze in der Liste an
+        renderStellplatzListe();
+      }
+
+      /**
+       * Startet den Prozess für einen neuen Stellplatz
+       */
+      function startNewStellplatz() {
+        // Vorhandene Zeichnungen entfernen
+        cancelDrawing();
+        
+        // Drawing Manager aktivieren und Steuerelemente anzeigen
+        AppState.drawingManager.setMap(AppState.map);
+        AppState.drawingManager.setOptions({
+          drawingControl: true
+        });
+        
+        // Benutzer über die nächsten Schritte informieren
+        showToast('Wählen Sie ein Zeichenwerkzeug und zeichnen Sie einen neuen Stellplatz auf der Karte', 'info');
+      }
+      
+      /**
+       * Bricht den Zeichenvorgang ab
+       */
+      function cancelDrawing() {
+        // Drawing Manager deaktivieren
+        if (AppState.drawingManager) {
+          AppState.drawingManager.setDrawingMode(null);
+          AppState.drawingManager.setMap(null);
+        }
+        
+        // Temporäre Formen entfernen
+        AppState.temporaryShapes.forEach(shape => {
+          shape.setMap(null);
+        });
+        
+        AppState.temporaryShapes = [];
+        AppState.drawingShape = null;
+      }
+      
+      /**
+       * Öffnet das Modal zur Erstellung eines neuen Stellplatzes
+       */
+      function openNewStellplatzModal(type, data) {
+        // Koordinaten-Anzeige im Modal aktualisieren
+        let coordsHTML = '';
+        
+        if (type === 'rectangle') {
+          coordsHTML = `
+            <strong>Rechteck:</strong><br>
+            Nord: ${data.bounds.north.toFixed(6)}<br>
+            Süd: ${data.bounds.south.toFixed(6)}<br>
+            Ost: ${data.bounds.east.toFixed(6)}<br>
+            West: ${data.bounds.west.toFixed(6)}<br>
+            <strong>Fläche:</strong> ${data.area}
+          `;
+        } else if (type === 'polygon') {
+          coordsHTML = `
+            <strong>Polygon:</strong><br>
+            ${data.polygonCoords.length} Punkte<br>
+            Zentrum: ${data.center.lat.toFixed(6)}, ${data.center.lng.toFixed(6)}<br>
+            <strong>Fläche:</strong> ${data.area}
+          `;
+        }
+        
+        UI.newStellplatzModal.coordsDisplay.innerHTML = coordsHTML;
+        
+        // Daten für später speichern
+        UI.newStellplatzModal.form.dataset.type = type;
+        UI.newStellplatzModal.form.dataset.data = JSON.stringify(data);
+        
+        // Nummer vorschlagen (nächste verfügbare)
+        const suggestedNumber = getSuggestedStellplatzNumber();
+        UI.newStellplatzModal.nummer.value = suggestedNumber;
+        
+        // Fläche übernehmen, wenn verfügbar
+        if (data.area) {
+          UI.newStellplatzModal.flaeche.value = data.area;
+        }
+        
+        // Modal öffnen
+        openModal(UI.newStellplatzModal.container);
+        UI.newStellplatzModal.nummer.focus();
+      }
+      
+      /**
+       * Generiert eine Vorschlagsnummer für einen neuen Stellplatz
+       */
+      function getSuggestedStellplatzNumber() {
+        // Bestehende Buchstabenpräfixe sammeln
+        const existingPrefixes = new Set();
+        const numbersByPrefix = {};
+        
+        AppState.stellplaetze.forEach(stellplatz => {
+          const match = stellplatz.nummer.match(/^([A-Z]+)(\d+)$/);
+          if (match) {
+            const prefix = match[1];
+            const number = parseInt(match[2], 10);
+            
+            existingPrefixes.add(prefix);
+            
+            if (!numbersByPrefix[prefix]) {
+              numbersByPrefix[prefix] = [];
+            }
+            
+            numbersByPrefix[prefix].push(number);
+          }
+        });
+        
+        // Als Array konvertieren und sortieren
+        const prefixes = Array.from(existingPrefixes).sort();
+        
+        if (prefixes.length === 0) {
+          return 'A1'; // Standardwert, wenn noch keine Stellplätze vorhanden
+        }
+        
+        // Das letzte Präfix verwenden und die nächste Nummer vorschlagen
+        const lastPrefix = prefixes[prefixes.length - 1];
+        const numbers = numbersByPrefix[lastPrefix] || [];
+        const maxNumber = numbers.length > 0 ? Math.max(...numbers) : 0;
+        
+        return `${lastPrefix}${maxNumber + 1}`;
+      }
+      
+      /**
+       * Speichert einen neuen Stellplatz
+       */
+      function saveNewStellplatz() {
+        // Formvalidierung
+        if (!UI.newStellplatzModal.nummer.value.trim()) {
+          showToast('Bitte geben Sie eine Stellplatz-Nummer ein', 'error');
+          UI.newStellplatzModal.nummer.focus();
+          return;
+        }
+        
+        // Typ-Daten abrufen
+        const type = UI.newStellplatzModal.form.dataset.type;
+        const data = JSON.parse(UI.newStellplatzModal.form.dataset.data);
+        
+        // Aktuelles Datum formatieren
+        const currentDate = new Date();
+        const formattedDate = `${currentDate.getDate().toString().padStart(2, '0')}.${(currentDate.getMonth() + 1).toString().padStart(2, '0')}.${currentDate.getFullYear()}`;
+        
+        // Stellplatz-Status ermitteln
+        const belegt = UI.newStellplatzModal.statusBelegt.checked;
+        
+        // Neuen Stellplatz erstellen
+        const newStellplatz = {
+          id: AppState.nextId++,
+          nummer: UI.newStellplatzModal.nummer.value.trim(),
+          typ: UI.newStellplatzModal.typ.value,
+          kapazitaet: UI.newStellplatzModal.kapazitaet.value.trim() || 'nicht angegeben',
+          flaeche: UI.newStellplatzModal.flaeche.value.trim() || 'nicht angegeben',
+          belegt: belegt,
+          letzteAenderung: formattedDate,
+          historie: [
+            {
+              datum: formattedDate,
+              status: belegt ? 'Belegt' : 'Frei',
+              notiz: UI.newStellplatzModal.notiz.value.trim() || 'Neuer Stellplatz erstellt'
+            }
+          ]
+        };
+        
+        // Je nach Typ (Rechteck oder Polygon) die entsprechenden Daten hinzufügen
+        if (type === 'rectangle') {
+          newStellplatz.bounds = data.bounds;
+        } else if (type === 'polygon') {
+          newStellplatz.isPolygon = true;
+          newStellplatz.polygonCoords = data.polygonCoords;
+          newStellplatz.center = data.center;
+          newStellplatz.bounds = data.bounds; // Auch Bounds für konsistente Handhabung
+        }
+        
+        // Zum Stellplatz-Array hinzufügen
+        AppState.stellplaetze.push(newStellplatz);
+        
+        // UI aktualisieren
+        createSingleStellplatz(newStellplatz);
+        updateStats();
+        renderStellplatzListe();
+        
+        // Temporäre Zeichnung entfernen
+        AppState.temporaryShapes.forEach(shape => {
+          shape.setMap(null);
+        });
+        AppState.temporaryShapes = [];
+        
+        // Zeichenmodus beenden
+        cancelDrawing();
+        
+        // Modal schließen
+        closeModal(UI.newStellplatzModal.container);
+        
+        // Zum neuen Stellplatz zoomen
+        zoomToStellplatz(newStellplatz);
+        selectStellplatzById(newStellplatz.id);
+        
+        // Benachrichtigung anzeigen
+        showToast(`Stellplatz ${newStellplatz.nummer} wurde erfolgreich erstellt`, 'success');
+      }
+      
+      /**
+       * Erstellt die Stellplätze auf der Karte
+       */
+      function createStellplaetze() {
+        AppState.stellplaetze.forEach(stellplatz => {
+          createSingleStellplatz(stellplatz);
+        });
+      }
+      
+      /**
+       * Erstellt einen einzelnen Stellplatz auf der Karte
+       */
+      function createSingleStellplatz(stellplatz) {
+        const fillColor = stellplatz.belegt ? '#F44336' : '#4CAF50';
+        const strokeColor = stellplatz.belegt ? '#D32F2F' : '#388E3C';
+        let shape;
+        let centerLat, centerLng;
+        
+        if (stellplatz.isPolygon) {
+          // Polygon für schräge Stellplätze erstellen
+          shape = new google.maps.Polygon({
+            paths: stellplatz.polygonCoords,
+            strokeColor: strokeColor,
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: fillColor,
+            fillOpacity: 0.35,
+            map: AppState.map,
+            stellplatzId: stellplatz.id
+          });
+          
+          // Vordefinierten Mittelpunkt verwenden
+          centerLat = stellplatz.center.lat;
+          centerLng = stellplatz.center.lng;
+        } else {
+          // Rechteck für den Stellplatz erstellen
+          shape = new google.maps.Rectangle({
+            strokeColor: strokeColor,
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: fillColor,
+            fillOpacity: 0.35,
+            bounds: stellplatz.bounds,
+            map: AppState.map,
+            stellplatzId: stellplatz.id
+          });
+          
+          // Mittelpunkt des Stellplatzes berechnen
+          const bounds = stellplatz.bounds;
+          centerLat = (bounds.north + bounds.south) / 2;
+          centerLng = (bounds.east + bounds.west) / 2;
+        }
+        
+        // Marker für den Stellplatz erstellen
+        const marker = new google.maps.Marker({
+          position: { lat: centerLat, lng: centerLng },
+          label: {
+            text: stellplatz.nummer,
+            color: 'white',
+            fontWeight: 'bold'
+          },
+          map: AppState.map,
+          opacity: 1,
+          stellplatzId: stellplatz.id
+        });
+        
+        // Event-Listener hinzufügen
+        shape.addListener('click', () => {
+          selectStellplatzById(stellplatz.id);
+          zoomToStellplatz(getStellplatzById(stellplatz.id));
+        });
+        
+        marker.addListener('click', () => {
+          selectStellplatzById(stellplatz.id);
+          zoomToStellplatz(getStellplatzById(stellplatz.id));
+        });
+        
+        // Event-Listener für Hover-Effekte
+        shape.addListener('mouseover', () => {
+          shape.setOptions({ fillOpacity: 0.6, strokeWeight: 3 });
+        });
+        
+        shape.addListener('mouseout', () => {
+          shape.setOptions({ fillOpacity: 0.35, strokeWeight: 2 });
+        });
+        
+        // Speichern der Referenzen
+        AppState.shapes.push(shape);
+        AppState.markers.push(marker);
+      }
+      
+      /**
+       * Stellt einen Stellplatz anhand seiner ID heraus
+       */
+      function selectStellplatzById(id) {
+        const stellplatz = getStellplatzById(id);
+        if (!stellplatz) return;
+        
+        AppState.selectedStellplatz = stellplatz;
+        updateStellplatzDetails(stellplatz);
+        
+        // Markiere den ausgewählten Stellplatz in der Liste
+        document.querySelectorAll('.stellplatz-info').forEach(el => {
+          el.classList.toggle('selected', el.dataset.id == id);
+        });
+        
+        // Tab-Wechsel zu Details, wenn nötig
+        if (AppState.activeTab !== 'details') {
+          switchTab('details');
+        }
+      }
+      
+      /**
+       * Holt einen Stellplatz anhand seiner ID
+       */
+      function getStellplatzById(id) {
+        return AppState.stellplaetze.find(s => s.id === id);
+      }
+      
+      /**
+       * Zoomt zur Ansicht eines bestimmten Stellplatzes
+       */
+      function zoomToStellplatz(stellplatz) {
+        if (!stellplatz) return;
+        
+        const bounds = new google.maps.LatLngBounds();
+        
+        if (stellplatz.isPolygon) {
+          // Für Polygone alle Koordinaten in die Bounds einbeziehen
+          stellplatz.polygonCoords.forEach(coord => {
+            bounds.extend(new google.maps.LatLng(coord.lat, coord.lng));
+          });
+        } else {
+          // Für rechteckige Stellplätze
+          bounds.extend(new google.maps.LatLng(stellplatz.bounds.south, stellplatz.bounds.west));
+          bounds.extend(new google.maps.LatLng(stellplatz.bounds.north, stellplatz.bounds.east));
+        }
+        
+        // Erweitere die Bounds für bessere Ansicht
+        const padding = 0.0005; // etwa 50 Meter
+        bounds.extend(new google.maps.LatLng(
+          bounds.getNorthEast().lat() + padding, 
+          bounds.getNorthEast().lng() + padding
+        ));
+        bounds.extend(new google.maps.LatLng(
+          bounds.getSouthWest().lat() - padding, 
+          bounds.getSouthWest().lng() - padding
+        ));
+        
+        AppState.map.fitBounds(bounds);
+      }
+      
+      /**
+       * Setzt die Kartenansicht zurück zur Übersicht
+       */
+      function resetMapView() {
+        const bounds = new google.maps.LatLngBounds();
+        
+        AppState.stellplaetze.forEach(stellplatz => {
+          if (stellplatz.isPolygon) {
+            stellplatz.polygonCoords.forEach(coord => {
+              bounds.extend(new google.maps.LatLng(coord.lat, coord.lng));
+            });
+          } else {
+            bounds.extend(new google.maps.LatLng(stellplatz.bounds.north, stellplatz.bounds.east));
+            bounds.extend(new google.maps.LatLng(stellplatz.bounds.south, stellplatz.bounds.west));
+          }
+        });
+        
+        AppState.map.fitBounds(bounds);
+        showToast('Kartenansicht zurückgesetzt', 'success');
+      }
+      
+      /**
+       * Aktualisiert die Anzeige der Stellplatz-Details
+       */
+      function updateStellplatzDetails(stellplatz) {
+        if (!stellplatz) {
+          UI.stellplatzDetails.innerHTML = `
+            <h3>Stellplatz-Details</h3>
+            <p>Bitte wählen Sie einen Stellplatz aus, um Details anzuzeigen.</p>
+          `;
+          return;
+        }
+        
+        const statusText = stellplatz.belegt ? 'Belegt' : 'Frei';
+        const statusClass = stellplatz.belegt ? 'badge-occupied' : 'badge-free';
+        
+        // Koordinaten für die Anzeige
+        let coords;
+        if (stellplatz.isPolygon && stellplatz.center) {
+          coords = `${stellplatz.center.lat.toFixed(6)}, ${stellplatz.center.lng.toFixed(6)}`;
+        } else {
+          coords = `${((stellplatz.bounds.north + stellplatz.bounds.south) / 2).toFixed(6)}, 
+                   ${((stellplatz.bounds.east + stellplatz.bounds.west) / 2).toFixed(6)}`;
+        }
+        
+        // Historie-Einträge formatieren
+        let historieHTML = '';
+        if (stellplatz.historie && stellplatz.historie.length > 0) {
+          historieHTML = `
+            <h4 style="margin-top: 1rem; margin-bottom: 0.5rem;">Historie</h4>
+            <div style="max-height: 150px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; padding: 0.5rem;">
+          `;
+          
+          stellplatz.historie.forEach(eintrag => {
+            const statusLabel = eintrag.status === 'Belegt' ? 
+              '<span class="status-badge badge-occupied" style="font-size: 0.7rem;">Belegt</span>' : 
+              '<span class="status-badge badge-free" style="font-size: 0.7rem;">Frei</span>';
+              
+            historieHTML += `
+              <div style="margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid #eee;">
+                <div style="display: flex; justify-content: space-between;">
+                  <strong>${eintrag.datum}</strong>
+                  ${statusLabel}
+                </div>
+                ${eintrag.notiz ? `<div style="margin-top: 0.25rem; font-size: 0.9rem;">${eintrag.notiz}</div>` : ''}
+              </div>
+            `;
+          });
+          
+          historieHTML += '</div>';
+        }
+        
+        const content = `
+          <h3>
+            Stellplatz ${stellplatz.nummer}
+            <span class="status-badge ${statusClass}">${statusText}</span>
+          </h3>
+          <div class="detail-item">
+            <span class="detail-label">Typ:</span>
+            <span>${stellplatz.typ}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Kapazität:</span>
+            <span>${stellplatz.kapazitaet}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Fläche:</span>
+            <span>${stellplatz.flaeche}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Letzte Änderung:</span>
+            <span>${stellplatz.letzteAenderung}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Koordinaten:</span>
+            <span>${coords}</span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Stellplatz-Form:</span>
+            <span>${stellplatz.isPolygon ? 'Polygon' : 'Rechteck'}</span>
+          </div>
+          
+          ${historieHTML}
+          
+          <div class="detail-actions">
+            <button class="btn ${stellplatz.belegt ? 'btn-success' : 'btn-danger'}" id="toggle-status">
+              Status ändern
+            </button>
+          </div>
+        `;
+        
+        UI.stellplatzDetails.innerHTML = content;
+        
+        // Event-Listener für Status-Änderung hinzufügen
+        document.getElementById('toggle-status').addEventListener('click', () => {
+          openStatusModal(stellplatz);
+        });
+      }
+      
+      /**
+       * Öffnet das Modal zur Statusänderung
+       */
+      function openStatusModal(stellplatz) {
+        UI.statusModal.title.textContent = `Status ändern: Stellplatz ${stellplatz.nummer}`;
+        UI.statusModal.statusSelect.value = String(stellplatz.belegt);
+        UI.statusModal.statusNote.value = '';
+        openModal(UI.statusModal.container);
+        UI.statusModal.statusSelect.focus();
+        
+        // Daten-Attribut für Stellplatz-ID
+        UI.statusModal.form.dataset.stellplatzId = stellplatz.id;
+      }
+      
+      /**
+       * Öffnet ein Modal
+       */
+      function openModal(modal) {
+        modal.classList.add('show');
+      }
+      
+      /**
+       * Schließt ein Modal
+       */
+      function closeModal(modal) {
+        modal.classList.remove('show');
+      }
+      
+      /**
+       * Speichert die Statusänderung
+       */
+      function saveStatusChange() {
+        const stellplatzId = parseInt(UI.statusModal.form.dataset.stellplatzId, 10);
+        const stellplatz = getStellplatzById(stellplatzId);
+        
+        if (!stellplatz) {
+          showToast('Fehler: Stellplatz nicht gefunden', 'error');
+          closeModal(UI.statusModal.container);
+          return;
+        }
+        
+        const newStatus = UI.statusModal.statusSelect.value === 'true';
+        const statusNote = UI.statusModal.statusNote.value.trim();
+        const currentDate = new Date();
+        const formattedDate = `${currentDate.getDate().toString().padStart(2, '0')}.${(currentDate.getMonth() + 1).toString().padStart(2, '0')}.${currentDate.getFullYear()}`;
+        
+        // Status ändern
+        stellplatz.belegt = newStatus;
+        stellplatz.letzteAenderung = formattedDate;
+        
+        // Historie aktualisieren
+        if (!stellplatz.historie) stellplatz.historie = [];
+        stellplatz.historie.unshift({
+          datum: formattedDate,
+          status: newStatus ? 'Belegt' : 'Frei',
+          notiz: statusNote
+        });
+        
+        // UI aktualisieren
+        updateMapElements();
+        updateStellplatzDetails(stellplatz);
+        updateStats();
+        renderStellplatzListe();
+        
+        closeModal(UI.statusModal.container);
+        showToast(`Status für Stellplatz ${stellplatz.nummer} erfolgreich geändert`, 'success');
+      }
+      
+      /**
+       * Aktualisiert die Kartenelemente nach Statusänderung
+       */
+      function updateMapElements() {
+        AppState.shapes.forEach((shape, index) => {
+          const stellplatzId = shape.stellplatzId;
+          const stellplatz = getStellplatzById(stellplatzId);
+          
+          if (stellplatz) {
+            const fillColor = stellplatz.belegt ? '#F44336' : '#4CAF50';
+            const strokeColor = stellplatz.belegt ? '#D32F2F' : '#388E3C';
+            
+            shape.setOptions({
+              fillColor: fillColor,
+              strokeColor: strokeColor
+            });
+          }
+        });
+      }
+      
+      /**
+       * Filtert die Stellplätze nach Status
+       */
+      function filterStellplaetze(filter) {
+        AppState.currentFilter = filter;
+        
+        // Aktualisiere aktiven Button
+        Object.entries(UI.filterButtons).forEach(([key, btn]) => {
+          const isActive = key === filter;
+          btn.classList.toggle('active', isActive);
+          btn.setAttribute('aria-pressed', isActive);
+        });
+        
+        // Wende Filter auf Karte an
+        AppState.shapes.forEach((shape, index) => {
+          const stellplatz = getStellplatzById(shape.stellplatzId);
+          const marker = AppState.markers[index];
+          
+          if (!stellplatz) return;
+          
+          let visible = true;
+          if (filter === 'free' && stellplatz.belegt) visible = false;
+          if (filter === 'occupied' && !stellplatz.belegt) visible = false;
+          
+          shape.setVisible(visible);
+          marker.setVisible(visible);
+        });
+        
+        // Aktualisiere die Liste
+        renderStellplatzListe();
+        showToast(`Filter: ${getFilterName(filter)}`, 'success');
+      }
+      
+      /**
+       * Gibt den Namen des Filters zurück
+       */
+      function getFilterName(filter) {
+        const filterNames = {
+          'all': 'Alle Stellplätze',
+          'free': 'Freie Stellplätze',
+          'occupied': 'Belegte Stellplätze'
+        };
+        return filterNames[filter] || 'Unbekannter Filter';
+      }
+      
+      /**
+       * Suche nach Stellplätzen
+       */
+      function handleSearch(e) {
+        AppState.searchTerm = e.target.value.toLowerCase().trim();
+        renderStellplatzListe();
+      }
+      
+      /**
+       * Wechselt zwischen Tabs
+       */
+      function switchTab(tab) {
+        AppState.activeTab = tab;
+        
+        // Tab-Buttons aktualisieren
+        Object.entries(UI.tabs).forEach(([key, btn]) => {
+          const isActive = key === tab;
+          btn.classList.toggle('active', isActive);
+          btn.setAttribute('aria-selected', isActive);
+        });
+        
+        // Tab-Inhalte aktualisieren
+        Object.entries(UI.tabContents).forEach(([key, content]) => {
+          content.classList.toggle('active', key === tab);
+        });
+      }
+      
+      /**
+       * Aktualisiert die Statistik-Anzeige
+       */
+      function updateStats() {
+        const total = AppState.stellplaetze.length;
+        const free = AppState.stellplaetze.filter(s => !s.belegt).length;
+        const occupied = AppState.stellplaetze.filter(s => s.belegt).length;
+        
+        UI.totalCount.textContent = total;
+        UI.freeCount.textContent = free;
+        UI.occupiedCount.textContent = occupied;
+      }
+      
+      /**
+       * Rendert die Liste der Stellplätze im Sidebar
+       */
+      function renderStellplatzListe() {
+        // DocumentFragment für bessere Performance bei vielen DOM-Änderungen
+        const fragment = document.createDocumentFragment();
+        let count = 0;
+        
+        // Sortiere Stellplätze nach Nummer
+        const sortedStellplaetze = [...AppState.stellplaetze].sort((a, b) => a.nummer.localeCompare(b.nummer, undefined, { numeric: true }));
+        
+        // Filtere Stellplätze basierend auf Filter und Suchbegriff
+        sortedStellplaetze.forEach(stellplatz => {
+          // Prüfe, ob der Stellplatz dem aktuellen Filter entspricht
+          if ((AppState.currentFilter === 'free' && stellplatz.belegt) || 
+              (AppState.currentFilter === 'occupied' && !stellplatz.belegt)) {
+            return;
+          }
+          
+          // Suche
+          if (AppState.searchTerm) {
+            const searchableText = (
+              stellplatz.nummer + ' ' + 
+              stellplatz.typ + ' ' + 
+              stellplatz.kapazitaet
+            ).toLowerCase();
+            
+            if (!searchableText.includes(AppState.searchTerm)) {
+              return;
+            }
+          }
+          
+          count++;
+          
+          const statusClass = stellplatz.belegt ? 'belegt' : '';
+          const selectedClass = AppState.selectedStellplatz && AppState.selectedStellplatz.id === stellplatz.id ? 'selected' : '';
+          const statusBadge = stellplatz.belegt ? 
+            '<span class="status-badge badge-occupied">Belegt</span>' : 
+            '<span class="status-badge badge-free">Frei</span>';
+          
+          const element = document.createElement('div');
+          element.className = `stellplatz-info ${statusClass} ${selectedClass}`;
+          element.dataset.id = stellplatz.id;
+          element.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center">
+              <strong>Stellplatz ${stellplatz.nummer}</strong>
+              ${statusBadge}
+            </div>
+            <div style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
+              ${stellplatz.typ} - ${stellplatz.kapazitaet}
+            </div>
+          `;
+          
+          // Event-Delegation vermeiden, stattdessen individuelle Listener hinzufügen
+          element.addEventListener('click', () => {
+            selectStellplatzById(stellplatz.id);
+            zoomToStellplatz(stellplatz);
+          });
+          
+          fragment.appendChild(element);
+        });
+        
+        // UI aktualisieren
+        UI.stellplatzListe.innerHTML = '';
+        if (count === 0) {
+          const noResults = document.createElement('p');
+          noResults.textContent = AppState.searchTerm ? 
+            'Keine Stellplätze gefunden. Bitte ändern Sie Ihre Suchkriterien.' : 
+            'Keine Stellplätze mit dem aktuellen Filter verfügbar.';
+          noResults.style.textAlign = 'center';
+          noResults.style.padding = '1rem';
+          noResults.style.color = '#666';
+          UI.stellplatzListe.appendChild(noResults);
+        } else {
+          UI.stellplatzListe.appendChild(fragment);
+        }
+      }
+      
+      /**
+       * Zeigt eine Toast-Benachrichtigung an
+       */
+      function showToast(message, type = 'success') {
+        const icons = {
+          success: '✅',
+          error: '❌',
+          warning: '⚠️',
+          info: 'ℹ️'
+        };
+        
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+        toast.innerHTML = `
+          <span class="toast-icon">${icons[type] || icons.info}</span>
+          ${message}
+        `;
+        
+        UI.toastContainer.appendChild(toast);
+        
+        // Entferne den Toast nach der Animation
+        setTimeout(() => {
+          toast.remove();
+        }, 3000);
+      }
+      
+      /**
+       * Druckt die aktuelle Ansicht
+       */
+      function printView() {
+        window.print();
+      }
+      
+      /**
+       * Map-Initialisierung bei Google Maps API-Ladung
+       */
+      window.initMap = initMap;
+      
+      /**
+       * Fallback für den Fall, dass die Google Maps API nicht geladen werden kann
+       */
+      window.gm_authFailure = function() {
+        handleMapError(new Error('Google Maps Authentifizierungsfehler. Bitte überprüfen Sie Ihren API-Schlüssel.'));
+      };
+    })();
+  </script>
+  
+  <!-- Achte darauf, deinen tatsächlichen API-Schlüssel hier einzufügen und dessen Verwendung zu beschränken -->
+  <script async defer src="https://maps.googleapis.com/maps/api/js?key=API_Key&libraries=drawing,geometry&callback=initMap"></script>
+</body>
+</html>
